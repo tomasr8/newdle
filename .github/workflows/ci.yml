@@ -7,7 +7,7 @@ on:
     branches: [master]
 
 jobs:
-  setup:
+  ci:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -60,4 +60,5 @@ jobs:
           make test
 
       - name: Lint
+        if: matrix.python-version == 3.8
         run: make lint

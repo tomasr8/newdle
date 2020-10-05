@@ -1,23 +1,33 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import classNames from 'classnames';
 import {Header} from 'semantic-ui-react';
 import {serializeDate, toMoment} from '../../util/date';
+import {useNumDaysVisible} from '../../util/hooks';
 import Slot from './Slot';
 import AnswerMultipleSlot from './MultipleSlot';
 import Option from './Option';
 import {useDispatch} from 'react-redux';
 import styles from './answer.module.scss';
 
-export default function DayTimeline({options, busySlots}) {
+export default function DayTimeline({options, busySlots, selected, hourPositions}) {
+  const numDaysVisible = useNumDaysVisible();
   const dispatch = useDispatch();
   // This date does not need to be timezone casted as we are only format correcting
   const formattedDate = serializeDate(toMoment(options.date, 'YYYY-MM-DD'), 'dddd D MMM');
+  const selectedDayClass = classNames(styles.date, {
+    [styles['date-selected']]: selected && numDaysVisible > 1,
+  });
   return (
     <>
-      <Header as="h3" className={styles.date}>
+      <Header as="h3" className={selectedDayClass}>
         {formattedDate}
       </Header>
       <div className={styles['options-column']}>
+        {hourPositions &&
+          hourPositions.map(pos => (
+            <hr key={pos} className={styles['hours-separator']} style={{top: `${pos}%`}} />
+          ))}
         {options.optionGroups.map(group => {
           const size = group.length;
           if (size < 4) {
@@ -58,6 +68,8 @@ export default function DayTimeline({options, busySlots}) {
 DayTimeline.propTypes = {
   options: PropTypes.object.isRequired,
   busySlots: PropTypes.object,
+  selected: PropTypes.bool.isRequired,
+  hourPositions: PropTypes.array,
 };
 
 DayTimeline.defaultProps = {

@@ -6,19 +6,30 @@
   text-align: center;
 }
 
-.date {
+.date:global(.ui.header) {
   text-align: center;
+  padding-bottom: 5px;
+  padding-top: 5px;
+
+  &.date-selected {
+    background-color: $turquoise;
+    color: $white;
+    border-radius: 3px;
+  }
 }
 
 .hours-column {
   position: relative;
   width: 100%;
   height: 750px;
-  margin-top: 25px;
+  margin-top: 35px;
 
   .hour {
     position: absolute;
     color: $grey;
+    width: 25px;
+    background-color: white;
+    z-index: 1;
   }
 }
 
@@ -44,7 +55,7 @@
 .options-column {
   position: relative;
   width: 100%;
-  height: 100%;
+  height: 750px;
   margin: 1px;
 
   .answer-slot {
@@ -62,7 +73,7 @@
 
     &.unavailable {
       color: $don-juan;
-      background-color: rgba($grey, 0.3);
+      background-color: #d9d9d9;
       border: 1px solid rgba($grey, 0.5);
 
       &:global(.overlapping):hover {
@@ -73,7 +84,7 @@
 
     &.available {
       color: $dark-green;
-      background-color: rgba($green, 0.5);
+      background-color: #b0f9b6;
       border: 1px solid rgba($dark-green, 0.3);
 
       &:global(.overlapping):hover {
@@ -83,7 +94,7 @@
 
     &.ifneedbe {
       color: $dark-yellow;
-      background-color: rgba($yellow, 0.5);
+      background-color: #fcf4b5;
       border: 1px solid rgba($dark-yellow, 0.3);
 
       &:global(.overlapping):hover {
@@ -133,18 +144,18 @@
       user-select: none;
 
       &.unavailable {
-        background-color: rgba($grey, 0.3);
+        background-color: #d9d9d9;
         color: $don-juan;
       }
 
       &.available {
         color: $dark-green;
-        background-color: rgba($green, 0.5);
+        background-color: #b0f9b6;
       }
 
       &.ifneedbe {
         color: $dark-yellow;
-        background-color: rgba($yellow, 0.5);
+        background-color: #fcf4b5;
       }
 
       i:global(.icon) {
@@ -159,6 +170,16 @@
     border: 1px solid darken($peach, 20%);
     opacity: 0.3;
     width: 100%;
+  }
+
+  .hours-separator {
+    position: absolute;
+    border: 0;
+    width: 114%;
+    height: 1px;
+    margin: 0;
+    background-color: #e6e6e6;
+    left: -7%;
   }
 }
 

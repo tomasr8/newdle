@@ -46,6 +46,7 @@ def test_me(flask_client, dummy_uid):
 @pytest.mark.parametrize('with_participants', (False, True))
 def test_create_newdle(flask_client, dummy_uid, with_participants):
     assert not Newdle.query.count()
+    now = datetime.utcnow()
     resp = flask_client.post(
         url_for('api.create_newdle'),
         **make_test_auth(dummy_uid),
@@ -65,6 +66,7 @@ def test_create_newdle(flask_client, dummy_uid, with_participants):
             if with_participants
             else [],
             'private': True,
+            'notify': True,
         },
     )
     assert resp.status_code == 200
@@ -89,15 +91,20 @@ def test_create_newdle(flask_client, dummy_uid, with_participants):
     assert data == {
         'creator_name': 'Guinea Pig',
         'creator_uid': dummy_uid,
+        'creator_email': 'example@example.com',
         'duration': 120,
         'final_dt': None,
         'participants': expected_participants,
         'timeslots': ['2019-09-11T13:00', '2019-09-11T15:00'],
         'timezone': 'Europe/Zurich',
         'private': True,
+        'notify': True,
         'title': 'My Newdle',
+        'deleted': False,
+        'deletion_dt': None,
     }
     newdle = Newdle.query.one()
+    assert newdle.last_update > now
     assert newdle.id == id_
     assert newdle.code == code
     assert newdle.title == 'My Newdle'
@@ -126,6 +133,7 @@ def test_create_newdle_duplicate_timeslot(flask_client, dummy_uid):
             'duration': 120,
             'timezone': 'Europe/Zurich',
             'private': True,
+            'notify': True,
             'timeslots': ['2019-09-11T13:00', '2019-09-11T13:00'],
         },
     )
@@ -155,6 +163,7 @@ def test_create_newdle_participant_email_sending(flask_client, dummy_uid, mail_q
                 }
             ],
             'private': True,
+            'notify': True,
         },
     )
     assert len(mail_queue) == 1
@@ -331,6 +340,7 @@ def test_create_newdle_invalid(flask_client, dummy_uid):
         'messages': {
             'duration': ['Missing data for required field.'],
             'private': ['Missing data for required field.'],
+            'notify': ['Missing data for required field.'],
             'timeslots': ['Missing data for required field.'],
             'timezone': ['Missing data for required field.'],
             'title': ['Missing data for required field.'],
@@ -352,6 +362,7 @@ def test_get_my_newdles(flask_client, dummy_uid, dummy_newdle):
         {
             'code': 'dummy',
             'creator_name': 'Dummy',
+            'creator_email': '',
             'creator_uid': dummy_newdle.creator_uid,
             'duration': 60,
             'final_dt': None,
@@ -380,9 +391,12 @@ def test_get_my_newdles(flask_client, dummy_uid, dummy_newdle):
                 },
             ],
             'private': True,
+            'notify': False,
             'timezone': 'Europe/Zurich',
             'title': 'Test event',
             'url': 'http://flask.test/newdle/dummy',
+            'deleted': False,
+            'deletion_dt': None,
         }
     ]
 
@@ -402,11 +416,13 @@ def test_get_newdle(flask_client, dummy_newdle):
     assert resp.json == {
         'code': 'dummy',
         'creator_name': 'Dummy',
+        'creator_email': '',
         'creator_uid': dummy_newdle.creator_uid,
         'duration': 60,
         'final_dt': None,
         'id': dummy_newdle.id,
         'private': True,
+        'notify': False,
         'timeslots': [
             '2019-09-11T13:00',
             '2019-09-11T14:00',
@@ -416,6 +432,8 @@ def test_get_newdle(flask_client, dummy_newdle):
         'timezone': 'Europe/Zurich',
         'title': 'Test event',
         'url': 'http://flask.test/newdle/dummy',
+        'deleted': False,
+        'deletion_dt': None,
     }
 
 
@@ -447,10 +465,12 @@ def test_update_newdle(flask_client, dummy_newdle, dummy_uid):
     expected_json = {
         'code': 'dummy',
         'creator_name': 'Dummy',
+        'creator_email': '',
         'creator_uid': dummy_newdle.creator_uid,
         'duration': 60,
         'id': dummy_newdle.id,
         'private': True,
+        'notify': False,
         'timeslots': [
             '2019-09-11T13:00',
             '2019-09-11T14:00',
@@ -483,6 +503,8 @@ def test_update_newdle(flask_client, dummy_newdle, dummy_uid):
         'timezone': 'Europe/Zurich',
         'title': 'Test event',
         'url': 'http://flask.test/newdle/dummy',
+        'deleted': False,
+        'deletion_dt': None,
     }
     resp = flask_client.patch(
         url_for('api.update_newdle', code='dummy'),
@@ -516,6 +538,67 @@ def test_update_newdle(flask_client, dummy_newdle, dummy_uid):
     assert resp.json == expected_json
 
 
+@pytest.mark.usefixtures('dummy_newdle')
+def test_update_newdle_changes_last_update(flask_client, dummy_uid, dummy_newdle):
+    before_update = dummy_newdle.last_update
+    flask_client.patch(
+        url_for('api.update_newdle', code='dummy'),
+        **make_test_auth(dummy_uid),
+        json={
+            'code': 'xxx',
+            'creator_name': 'someone',
+            'duration': 120,
+            'final_dt': '2019-09-12T13:30',
+            'id': 10,
+            'timeslots': [
+                '2019-08-11T13:00',
+                '2019-08-11T14:00',
+                '2019-08-12T13:00',
+                '2019-08-12T13:30',
+            ],
+            'timezone': 'Europe/Paris',
+            'title': 'Test event1',
+            'url': 'http://flask.test/newdle/dummy1',
+        },
+    )
+    assert before_update < dummy_newdle.last_update
+
+
+@pytest.mark.usefixtures('db_session')
+def test_update_participants_changes_last_update(flask_client, dummy_newdle):
+    before_update = dummy_newdle.last_update
+    flask_client.patch(
+        url_for('api.update_participant', code='dummy', participant_code='part1'),
+        json={
+            'answers': {
+                '2019-09-11T13:00': 'available',
+                '2019-09-12T13:00': 'unavailable',
+                '2019-09-11T14:00': 'ifneedbe',
+            }
+        },
+    )
+    assert before_update < dummy_newdle.last_update
+
+
+@pytest.mark.usefixtures('dummy_newdle')
+def test_update_participant_empty_list_leaves_last_update(flask_client, dummy_newdle):
+    before_update = dummy_newdle.last_update
+    flask_client.patch(
+        url_for('api.update_participant', code='dummy', participant_code='part1')
+    )
+    assert before_update == dummy_newdle.last_update
+
+
+@pytest.mark.usefixtures('db_session')
+def test_create_unknown_participant_changes_last_update(flask_client, dummy_newdle):
+    before_update = dummy_newdle.last_update
+    resp = flask_client.post(
+        url_for('api.create_unknown_participant', code='dummy'), json={'name': 'Potato'}
+    )
+    assert resp.status_code == 200
+    assert dummy_newdle.last_update > before_update
+
+
 @pytest.mark.usefixtures('db_session')
 def test_newdles_not_participating(flask_client, dummy_uid):
     resp = flask_client.get(
@@ -547,11 +630,13 @@ def test_newdles_participating(flask_client, dummy_newdle, dummy_participant_uid
             'newdle': {
                 'code': 'dummy',
                 'creator_name': 'Dummy',
+                'creator_email': '',
                 'creator_uid': dummy_newdle.creator_uid,
                 'duration': 60,
                 'final_dt': None,
                 'id': dummy_newdle.id,
                 'private': True,
+                'notify': False,
                 'timeslots': [
                     '2019-09-11T13:00',
                     '2019-09-11T14:00',
@@ -561,6 +646,8 @@ def test_newdles_participating(flask_client, dummy_newdle, dummy_participant_uid
                 'timezone': 'Europe/Zurich',
                 'title': 'Test event',
                 'url': 'http://flask.test/newdle/dummy',
+                'deleted': False,
+                'deletion_dt': None,
             },
         }
     ]
@@ -776,6 +863,7 @@ def test_create_unknown_participant_newdle_finished(flask_client, dummy_newdle):
 @pytest.mark.usefixtures('dummy_newdle')
 def test_create_unknown_participant(flask_client):
     name = 'Unknown participant'
+    now = datetime.utcnow()
     num_participants = Participant.query.count()
     resp = flask_client.post(
         url_for('api.create_unknown_participant', code='dummy'), json={'name': name}
@@ -792,9 +880,11 @@ def test_create_unknown_participant(flask_client):
         'name': name,
         'comment': '',
     }
+    newdle = Newdle.query.filter_by(code='dummy').first()
     assert Participant.query.count() == num_participants + 1
     assert participant.code == code
     assert participant.id == id_
+    assert newdle.last_update > now
 
 
 @pytest.mark.usefixtures('dummy_newdle')
@@ -856,3 +946,93 @@ def test_create_participant(flask_client, dummy_newdle, dummy_uid):
         'comment': '',
     }
     assert Participant.query.count() == nb_participant + 1
+
+
+@pytest.mark.usefixtures('db_session')
+def test_delete_newdle(flask_client, dummy_newdle, dummy_uid):
+    assert not dummy_newdle.deleted
+    assert dummy_newdle.deletion_dt is None
+    flask_client.delete(
+        url_for('api.delete_newdle', code='dummy'), **make_test_auth(dummy_uid)
+    )
+    assert dummy_newdle.deleted
+    assert dummy_newdle.deletion_dt
+
+
+@pytest.mark.usefixtures('db_session')
+def test_get_deleted_newdle(flask_client, dummy_newdle, dummy_uid):
+    flask_client.delete(
+        url_for('api.delete_newdle', code='dummy'), **make_test_auth(dummy_uid)
+    )
+    assert dummy_newdle.deleted
+    assert dummy_newdle.deletion_dt
+
+    resp = flask_client.get(url_for('api.get_newdle', code='dummy'))
+    assert resp.status_code == 200
+    assert resp.json == {
+        'code': 'dummy',
+        'creator_name': 'Dummy',
+        'creator_uid': dummy_newdle.creator_uid,
+        'id': dummy_newdle.id,
+        'title': 'Test event',
+        'deleted': True,
+    }
+
+
+@pytest.mark.usefixtures('mail_queue')
+def test_send_result_emails(flask_client, dummy_newdle, mail_queue, dummy_uid):
+    assert len(mail_queue) == 0
+    dummy_newdle.final_dt = datetime(2019, 9, 12, 13, 30)
+    resp = flask_client.post(
+        url_for('api.send_result_emails', code='dummy'),
+        **make_test_auth(dummy_uid),
+    )
+    assert len(mail_queue) == 1
+    assert resp.status_code == 204
+
+
+@pytest.mark.usefixtures('dummy_newdle')
+def test_send_result_emails_forbidden(flask_client):
+    resp = flask_client.post(
+        url_for('api.send_result_emails', code='dummy'),
+        **make_test_auth('wrong_user'),
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.usefixtures('dummy_newdle')
+def test_send_result_emails_404(flask_client, dummy_uid):
+    resp = flask_client.post(
+        url_for('api.send_result_emails', code='non_existent'),
+        **make_test_auth(dummy_uid),
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.usefixtures('dummy_newdle')
+def test_send_deletion_emails(flask_client, dummy_newdle, mail_queue, dummy_uid):
+    assert len(mail_queue) == 0
+    resp = flask_client.post(
+        url_for('api.send_deletion_emails', code='dummy'),
+        **make_test_auth(dummy_uid),
+    )
+    assert len(mail_queue) == 1
+    assert resp.status_code == 204
+
+
+@pytest.mark.usefixtures('dummy_newdle')
+def test_send_deletion_emails_forbidden(flask_client):
+    resp = flask_client.post(
+        url_for('api.send_deletion_emails', code='dummy'),
+        **make_test_auth('wrong_user'),
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.usefixtures('dummy_newdle')
+def test_send_deletion_emails_404(flask_client, dummy_uid):
+    resp = flask_client.post(
+        url_for('api.send_deletion_emails', code='non_existent'),
+        **make_test_auth(dummy_uid),
+    )
+    assert resp.status_code == 404

@@ -3,10 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@lingui/core": "^3.0.0-13",
+    "@lingui/react": "^3.0.0-13",
+    "classnames": "^2.2.6",
     "final-form": "^4.20.1",
     "flask-urls": "^0.2.0",
     "indico-sui-theme": "0.0.4",
     "lodash": "^4.17.20",
+    "make-plural": "^6.2.2",
     "moment": "^2.27.0",
     "moment-timezone": "^0.5.31",
     "prop-types": "^15.7.2",
@@ -28,7 +32,11 @@
     "semantic-ui-react": "^1.2.0"
   },
   "devDependencies": {
+    "@babel/core": "^7.11.6",
     "@jedmao/redux-mock-store": "^3.0.5",
+    "@lingui/cli": "^3.0.0-13",
+    "@lingui/macro": "^3.0.0-13",
+    "babel-core": "^7.0.0-bridge.0",
     "enzyme": "^3.11.0",
     "enzyme-adapter-react-16": "^1.15.3",
     "eslint-config-prettier": "^6.11.0",
@@ -42,7 +50,30 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "add-locale": "lingui add-locale",
+    "extract": "rm -f src/locales/en/messages.* && lingui extract --clean",
+    "compile": "lingui compile"
+  },
+  "lingui": {
+    "catalogs": [
+      {
+        "path": "<rootDir>/src/locales/{locale}/messages",
+        "include": [
+          "<rootDir>/src"
+        ],
+        "exclude": [
+          "**/node_modules/**"
+        ]
+      }
+    ],
+    "format": "po",
+    "sourceLocale": "en",
+    "locales": [
+      "en",
+      "es"
+    ],
+    "compileNamespace": "es"
   },
   "eslintConfig": {
     "extends": "react-app"

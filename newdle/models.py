@@ -1,4 +1,5 @@
 import random
+from datetime import datetime
 from enum import auto
 
 from flask import current_app
@@ -39,12 +40,23 @@ class Newdle(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     creator_uid = db.Column(db.String, nullable=False, index=True)
     creator_name = db.Column(db.String, nullable=False)
+    creator_email = db.Column(db.String, nullable=False, server_default='')
     title = db.Column(db.String, nullable=False)
     duration = db.Column(db.Interval, nullable=False)
     timezone = db.Column(db.String, nullable=False)
     timeslots = db.Column(ARRAY(db.DateTime()), nullable=False)
     final_dt = db.Column(db.DateTime(), nullable=True)
+    deletion_dt = db.Column(db.DateTime(), nullable=True)
+    last_update = db.Column(
+        db.DateTime(),
+        nullable=False,
+        default=datetime.utcnow,
+        server_default=db.text("(now() at time zone 'utc')::timestamp"),
+    )
     private = db.Column(
+        db.Boolean, nullable=False, default=False, server_default='false'
+    )
+    notify = db.Column(
         db.Boolean, nullable=False, default=False, server_default='false'
     )
     code = db.Column(
@@ -62,6 +74,22 @@ class Newdle(db.Model):
         back_populates='newdle',
         cascade='all, delete-orphan',
     )
+
+    @hybrid_property
+    def deleted(self):
+        return self.deletion_dt is not None
+
+    @deleted.expression
+    def deleted(cls):
+        return cls.deletion_dt.isnot(None)
+
+    @deleted.setter
+    def deleted(self, value):
+        self.deletion_dt = datetime.utcnow() if value else None
+
+    def update_lastmod(self):
+        """Set the last_update time of the newdle to the current time."""
+        self.last_update = datetime.utcnow()
 
     def __repr__(self):
         return '<Newdle {}{}: "{}">'.format(
@@ -103,7 +131,7 @@ class Participant(db.Model):
 
     @hybrid_property
     def answers(self):
-        return {parse_dt(k): Availability[v] for k, v in self._answers.items()}
+        return {parse_dt(k): Availability[v] for k, v in sorted(self._answers.items())}
 
     @answers.expression
     def answers(cls):

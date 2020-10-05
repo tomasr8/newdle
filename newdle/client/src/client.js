@@ -125,7 +125,7 @@ class Client {
     return this._request(flask`api.users`({name, email}));
   }
 
-  createNewdle(title, duration, timezone, timeslots, participants, isPrivate) {
+  createNewdle(title, duration, timezone, timeslots, participants, isPrivate, notify) {
     const params = {
       method: 'POST',
       body: JSON.stringify({
@@ -135,6 +135,7 @@ class Client {
         timeslots,
         participants,
         private: isPrivate,
+        notify,
       }),
     };
     return this._request(flask`api.create_newdle`(), params);
@@ -172,6 +173,12 @@ class Client {
     return this._request(flask`api.update_newdle`({code}), {
       method: 'PATCH',
       body: JSON.stringify({final_dt: finalDate}),
+    });
+  }
+
+  deleteNewdle(code) {
+    return this._request(flask`api.delete_newdle`({code}), {
+      method: 'DELETE',
     });
   }
 
@@ -220,6 +227,15 @@ class Client {
   sendResultEmails(code) {
     return this._request(flask`api.send_result_emails`({code}), {
       method: 'POST',
+    });
+  }
+
+  sendDeletionEmails(code, comment) {
+    return this._request(flask`api.send_deletion_emails`({code}), {
+      method: 'POST',
+      body: JSON.stringify({
+        comment: comment,
+      }),
     });
   }
 

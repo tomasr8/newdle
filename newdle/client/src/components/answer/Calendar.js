@@ -5,10 +5,12 @@ import PropTypes from 'prop-types';
 import {Grid} from 'semantic-ui-react';
 import {useDispatch, useSelector} from 'react-redux';
 import {hourRange, serializeDate, toMoment, getHourSpan} from '../../util/date';
-import {useIsSmallScreen} from '../../util/hooks';
+import {useIsSmallScreen, useNumDaysVisible} from '../../util/hooks';
 import DayTimeline from './DayTimeline';
 import {
   getActiveDate,
+  getActivePosition,
+  getActiveDateIndex,
   getLocalNewdleTimeslots,
   getNewdleDuration,
   getAnswers,
@@ -18,6 +20,7 @@ import {
 } from '../../answerSelectors';
 import {setAnswer, setAnswerActiveDate} from '../../actions';
 import DayCarousel from '../DayCarousel';
+
 import styles from './answer.module.scss';
 
 const OVERFLOW_HEIGHT = 0.5;
@@ -152,6 +155,11 @@ function calculateBusyPositions(busyTimes, minHour, maxHour) {
   });
 }
 
+function calculateHourPositions(minHour, maxHour, hourStep) {
+  const hourSpan = maxHour - minHour;
+  return _.range(0, hourSpan + hourStep, hourStep).map(i => (i / hourSpan) * 100);
+}
+
 function Hours({minHour, maxHour, hourStep}) {
   const hourSeries = hourRange(minHour, maxHour, hourStep);
   const hourSpan = maxHour - minHour;
@@ -190,8 +198,11 @@ export default function Calendar() {
   const newdleTz = useSelector(getNewdleTimezone);
   const userTz = useSelector(getUserTimezone);
   const activeDate = toMoment(useSelector(getActiveDate), HTML5_FMT.DATE);
+  const activeDatePosition = useSelector(getActivePosition);
+  const activeDateIndex = useSelector(getActiveDateIndex);
   const dispatch = useDispatch();
 
+  const numDaysVisible = useNumDaysVisible();
   const defaultHourSpan = MAX_HOUR - MIN_HOUR;
   const isTabletOrMobile = useIsSmallScreen();
 
@@ -219,27 +230,34 @@ export default function Calendar() {
     userTz
   );
   const busyByDay = calculateBusyPositions(busyTimes, minHour, maxHour);
-  const activeDateIndex = optionsByDay.findIndex(({date: timeSlotDate}) =>
-    toMoment(timeSlotDate, HTML5_FMT.DATE).isSame(activeDate, 'day')
-  );
-  const numDaysVisible = isTabletOrMobile ? 1 : 3;
   const numColumns = isTabletOrMobile ? 14 : 5;
+  const isActiveDay = date => activeDate.isSame(date);
+
   return (
-    <Grid className={styles.calendar}>
+    <Grid>
       <Grid.Row>
         <Grid.Column width={1}>
           <Hours minHour={minHour} maxHour={maxHour} />
         </Grid.Column>
         <DayCarousel
           numberOfVisible={numDaysVisible}
-          start={activeDateIndex === -1 ? 0 : activeDateIndex}
+          activeIndex={activeDateIndex === -1 ? 0 : activeDateIndex}
           items={optionsByDay}
-          changeItem={nextItem => dispatch(setAnswerActiveDate(nextItem.date))}
+          changeItem={(nextItem, position) => {
+            dispatch(setAnswerActiveDate(nextItem.date, position));
+          }}
+          activePosition={activeDatePosition}
           renderItem={item => (
             <Grid.Column width={numColumns} key={item.date}>
               <DayTimeline
                 options={item}
                 busySlots={busyByDay.find(busySlot => busySlot.date === item.date)}
+                selected={isActiveDay(item.date)}
+                hourPositions={calculateHourPositions(
+                  minHour,
+                  maxHour,
+                  Hours.defaultProps.hourStep
+                )}
               />
             </Grid.Column>
           )}

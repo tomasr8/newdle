@@ -10,10 +10,11 @@ FLASK := ${VENV}/bin/flask
 NODE_MODULES_GLOBAL := node_modules/.lastmake
 NODE_MODULES_CLIENT := newdle/client/node_modules/.lastmake
 CONFIG := newdle/newdle.cfg
+I18N := newdle/client/src/locales/*/messages.js
 
 
 .PHONY: all
-all: ${VENV} ${NODE_MODULES_GLOBAL} ${NODE_MODULES_CLIENT} ${CONFIG}
+all: ${VENV} ${NODE_MODULES_GLOBAL} ${NODE_MODULES_CLIENT} config
 	@printf "\033[38;5;154mSETUP\033[0m  \033[38;5;105mInstalling newdle python package\033[0m\n"
 	@${PIP} install -q -e '.[dev]'
 
@@ -31,7 +32,6 @@ endif
 	@${PYTHON} -m venv --prompt newdle .venv
 	@${PIP} install -q -U pip setuptools
 
-
 ${CONFIG}: | ${CONFIG}.example
 	@printf "\033[38;5;154mSETUP\033[0m  \033[38;5;105mCreating config [\033[38;5;147m${CONFIG}\033[38;5;105m]\033[0m\n"
 	@cp ${CONFIG}.example ${CONFIG}
@@ -40,7 +40,6 @@ ${CONFIG}: | ${CONFIG}.example
 	@sed -i.bak "s/^EMAIL_BACKEND = '[^']\+'/EMAIL_BACKEND = 'newdle.vendor.django_mail.backends.console.EmailBackend'/" ${CONFIG}
 	@rm -f ${CONFIG}.bak
 	@printf "       \033[38;5;82mDon't forget to update the config file if needed!\033[0m\n"
-
 
 ${NODE_MODULES_GLOBAL}: package.json
 	@printf "\033[38;5;154mSETUP\033[0m  \033[38;5;105mInstalling top-level node packages\033[0m\n"
@@ -53,12 +52,22 @@ ${NODE_MODULES_CLIENT}: newdle/client/package.json newdle/client/package-lock.js
 	@cd newdle/client && npm ci --silent
 	@touch ${NODE_MODULES_CLIENT}
 
+.PHONY: i18n-extract
+i18n-extract:
+	@printf "\033[38;5;154mI18N\033[0m  \033[38;5;105mExtracting strings\033[0m\n"
+	@cd newdle/client && PATH="$(abspath ${VENV}/bin):${PATH}" npm run extract
+
+${I18N}: newdle/client/src/locales/*/messages.po
+	@printf "\033[38;5;154mI18N\033[0m  \033[38;5;105mCompiling translations\033[0m\n"
+	@cd newdle/client && npm run compile
+
 
 .PHONY: clean
 clean:
 	@printf "\033[38;5;154mCLEAN\033[0m  \033[38;5;202mDeleting all generated files...\033[0m\n"
 	@rm -rf package-lock.json .venv node_modules newdle.egg-info pip-wheel-metadata dist build
-	@rm -rf newdle/client/node_modules newdle/client/build
+	@rm -rf newdle/client/node_modules newdle/client/build newdle/client/src/locales/_build
+	@rm -f newdle/client/src/locales/*/messages.js newdle/client/src/locales/en/messages.*
 	@find newdle/ -name __pycache__ -exec rm -rf {} +
 
 
@@ -75,7 +84,7 @@ flask-server:
 
 
 .PHONY: react-server
-react-server:
+react-server: i18n
 	@printf "  \033[38;5;154mRUN\033[0m  \033[38;5;75mRunning React dev server\033[0m\n"
 	@source ${VENV}/bin/activate && \
 		cd newdle/client && \
@@ -86,8 +95,8 @@ react-server:
 lint:
 	@printf "  \033[38;5;154mDEV\033[0m  \033[38;5;77mLinting code\033[0m\n"
 	@npm run flake8
-	@npm run prettier:check
 	@npm run eslint:check
+	@npm run prettier:check
 	@npm run isort:check
 	@npm run black:check
 
@@ -109,7 +118,7 @@ test:
 
 
 .PHONY: build
-build:
+build: i18n
 	@printf "  \033[38;5;154mBUILD\033[0m  \033[38;5;176mBuilding production package\033[0m\n"
 	@rm -rf newdle/client/build build
 	@source ${VENV}/bin/activate && cd newdle/client && npm run build
@@ -120,3 +129,12 @@ build:
 docker:
 	@printf "  \033[38;5;154mDOCKER\033[0m  \033[38;5;176mBuilding production docker image\033[0m\n"
 	@docker build -t newdle .
+
+.PHONY: config
+config: ${CONFIG}
+
+.PHONY: env
+env: ${VENV}
+
+.PHONY: i18n
+i18n: i18n-extract ${I18N}

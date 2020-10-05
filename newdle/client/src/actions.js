@@ -23,6 +23,7 @@ export const ADD_TIMESLOT = 'Add new timeslot';
 export const REMOVE_TIMESLOT = 'Remove a timeslot';
 export const SET_TITLE = 'Set title for Newdle';
 export const SET_PRIVATE = 'Keep list of participants private';
+export const SET_NOTIFICATION = 'Notify creator about new answers';
 export const SET_TIMEZONE = 'Set the meeting timezone';
 export const NEWDLE_RECEIVED = 'Received newdle data';
 export const CLEAR_NEWDLE = 'Clear newdle data';
@@ -149,6 +150,10 @@ export function setPrivate(isPrivate) {
   return {type: SET_PRIVATE, private: isPrivate};
 }
 
+export function setNotification(notify) {
+  return {type: SET_NOTIFICATION, notify};
+}
+
 export function fetchNewdle(code, fullDetails = false, action = NEWDLE_RECEIVED) {
   return async dispatch => {
     const newdle = await client.catchErrors(client.getNewdle(code));
@@ -200,8 +205,8 @@ export function setAnswer(timeslot, answer) {
   };
 }
 
-export function setAnswerActiveDate(date) {
-  return {type: SET_ANSWER_ACTIVE_DATE, date};
+export function setAnswerActiveDate(date, position) {
+  return {type: SET_ANSWER_ACTIVE_DATE, date, position};
 }
 
 export function updateNewdle(newdle) {
